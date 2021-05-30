@@ -1,0 +1,23 @@
+{
+  "name": "twitch-viewer-alerter",
+  "version": "0.1.0",
+  "description": "Configurable browser userscript that alerts when selected users join the chat.",
+  "main": "twitch-viewer-alerter.user.js",
+  "dependencies": {},
+  "devDependencies": {
+    "eslint": "^7.26.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aranciro/Twitch-Viewer-Alerter.git"
+  },
+  "author": "aranciro",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/aranciro/Twitch-Viewer-Alerter/issues"
+  },
+  "homepage": "https://github.com/aranciro/Twitch-Viewer-Alerte#readme"
+}
