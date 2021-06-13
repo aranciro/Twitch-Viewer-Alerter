@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitch Viewer Alerter
 // @namespace       https://github.com/aranciro/
-// @version         0.2.0
+// @version         0.3.0
 // @license         GPL-3.0-or-later; https://www.gnu.org/licenses/gpl-3.0.txt
 // @description     Configurable browser userscript that alerts when selected users join the chat.
 // @author          aranciro
@@ -20,9 +20,13 @@
 // @run-at          document-idle
 // ==/UserScript==
 
-const pollingInterval = 7000;
-const blinkAnimationTimeout = 5000;
-const blinkAnimationClassName = "tva-blink";
+let mock = false;
+let mockRequests = true;
+
+const mockedPollingInterval = 7;
+const mockedUpdateAnimationTimeout = 5;
+
+const updateAnimationClassName = "tva-blink";
 const viewerAlerterDivClassName = "tva-div";
 const viewerAlerterDivIdPrefix = "viewerAlerter";
 
@@ -35,7 +39,7 @@ const selectors = {
 
 GM_addStyle(`
 @keyframes blinker { 50% { opacity: 0; } } 
-.${blinkAnimationClassName} { animation: blinker 1s linear infinite; }
+.${updateAnimationClassName} { animation: blinker 1s linear infinite; }
 .${viewerAlerterDivClassName} {
   display: flex !important;
   -webkit-box-pack: justify !important;
@@ -61,7 +65,6 @@ const channelCategories = {
   2: { name: "Annoying users", color: "#ff2323" },
 };
 
-let mock = true;
 let mockedResponseIndex = 0;
 let mockedResponses = [
   [
@@ -375,50 +378,145 @@ let mockedResponses = [
   ],
 ];
 
-const mockedConfig = {
-  monitoredUsers: [
-    {
-      username: "aranciro",
-      userCategory: 0,
+const mockedMonitoredUsers = [
+  {
+    username: "aranciro",
+    userCategory: 0,
+  },
+  {
+    username: "Yotobi",
+    userCategory: 0,
+  },
+  {
+    username: "gomboni",
+    userCategory: 1,
+  },
+  {
+    username: "thewolfofficial_yt",
+    userCategory: 2,
+  },
+  {
+    username: "kennatwitch",
+    userCategory: 1,
+  },
+  {
+    username: "atypicalpanic",
+    userCategory: 2,
+  },
+  {
+    username: "Norisawa",
+    userCategory: 1,
+  },
+  {
+    username: "ValenTech",
+    userCategory: 1,
+  },
+  {
+    username: "Zyxhac",
+    userCategory: 2,
+  },
+];
+
+GM_config.init({
+  id: "Twitch_Viewer_Alerter_config",
+  title: "Twitch Viewer Alerter - Configuration",
+  fields: {
+    pollingInterval: {
+      label:
+        "<br /><br />Polling interval <br />(do not set too low or Twitch might label requests as spam and block them):<br />",
+      title: "Insert the polling interval in seconds.",
+      type: "int",
+      min: 1,
+      default: mock ? 7 : 30,
     },
-    {
-      username: "Yotobi",
-      userCategory: 0,
+    updateAnimationTimeout: {
+      label:
+        "<br /><br />Timeout before the blink animation disappears after an update:<br />",
+      title: "Insert the timeout for the update blink animation.",
+      type: "int",
+      min: 0,
+      default: 3,
     },
-    {
-      username: "gomboni",
-      userCategory: 1,
+    monitoredUsers: {
+      label:
+        "<br /><br />Insert the users to be monitored, separated by comma (e.g. user1, user2,...). " +
+        '\n<br />To add category append ":[category index]" (e.g. user1:2, user2:0,...). ' +
+        "\n<br />Available categories: " +
+        "\n<br />0 - Big streamers " +
+        "\n<br />1 - Regular users (default)" +
+        "\n<br />2 - Annoying users",
+      title: "Insert the users to be monitored",
+      type: "text",
+      size: 30000,
+      default: "",
     },
-    {
-      username: "thewolfofficial_yt",
-      userCategory: 2,
+  },
+  events: {
+    save: () => {
+      updateConfig();
     },
-    {
-      username: "kennatwitch",
-      userCategory: 1,
-    },
-    {
-      username: "atypicalpanic",
-      userCategory: 2,
-    },
-    {
-      username: "Norisawa",
-      userCategory: 1,
-    },
-    {
-      username: "ValenTech",
-      userCategory: 1,
-    },
-    {
-      username: "Zyxhac",
-      userCategory: 2,
-    },
-  ],
+  },
+});
+
+GM_registerMenuCommand("Configure Twitch Viewer Alerter", () => {
+  GM_config.open();
+});
+
+const getMonitoredUsersFromConfig = (monitoredUsersRawString) => {
+  const defaultCategory = 1;
+  let monitoredUsers = [];
+  try {
+    monitoredUsersRawString.split(",").forEach((monitoredUserInRawString) => {
+      const monitoredUser = monitoredUserInRawString.trim().split(":");
+      const username = monitoredUser[0].trim();
+      const userCategory =
+        monitoredUser.length > 1
+          ? parseInt(monitoredUser[1].trim())
+          : defaultCategory;
+      monitoredUsers = [
+        ...monitoredUsers,
+        {
+          username: username,
+          userCategory: userCategory,
+        },
+      ];
+    });
+  } catch (e) {
+    console.error(
+      "Error while trying to obtain monitored users from config.",
+      e
+    );
+    return [];
+  }
+  return monitoredUsers;
 };
 
-const config = mock ? mockedConfig : {};
+const config = mock
+  ? {
+      pollingInterval: mockedPollingInterval,
+      updateAnimationTimeout: mockedUpdateAnimationTimeout,
+      monitoredUsers: mockedMonitoredUsers,
+    }
+  : {
+      pollingInterval: GM_config.get("pollingInterval"),
+      updateAnimationTimeout: GM_config.get("updateAnimationTimeout"),
+      monitoredUsers: getMonitoredUsersFromConfig(
+        GM_config.get("monitoredUsers")
+      ),
+    };
+
+const updateConfig = () => {
+  config.pollingInterval = GM_config.get("pollingInterval");
+  config.updateAnimationTimeout = GM_config.get("updateAnimationTimeout");
+  config.monitoredUsers = getMonitoredUsersFromConfig(
+    GM_config.get("monitoredUsers")
+  );
+  removeExistingViewerAlerterDivNodes();
+  insertViewerAlerterFullNodes();
+};
 
 let monitoredUsersInChannel = [];
+let fullViewerAlerterDivNodes = [];
 
 const run = () => {
   const usernameNode = document.querySelector(selectors.usernameNode);
@@ -458,7 +556,7 @@ const run = () => {
   }
 };
 
-function createViewerAlerterH2Node(categoryKey) {
+const createViewerAlerterH2Node = (categoryKey) => {
   const newViewerAlerterH2Node = document.createElement("h2");
   newViewerAlerterH2Node.setAttribute(
     "id",
@@ -468,9 +566,9 @@ function createViewerAlerterH2Node(categoryKey) {
   newViewerAlerterH2Node.style.margin = "auto";
   newViewerAlerterH2Node.style.color = channelCategories[categoryKey].color;
   return newViewerAlerterH2Node;
-}
+};
 
-function createViewerAlerterDivNode(categoryKey) {
+const createViewerAlerterDivNode = (categoryKey) => {
   const newViewerAlerterDivNode = document.createElement("div");
   newViewerAlerterDivNode.setAttribute(
     "id",
@@ -487,9 +585,19 @@ function createViewerAlerterDivNode(categoryKey) {
   newViewerAlerterDivNode.style.maxHeight = "4.3em";
   newViewerAlerterDivNode.style.overflow = "auto";
   return newViewerAlerterDivNode;
-}
+};
 
 const getChatters = async () => {
+  if (mockRequests) {
+    const mockedResponseBody =
+      mockedResponses[
+        mockedResponseIndex > mockedResponses.length - 1
+          ? mockedResponses.length - 1
+          : mockedResponseIndex
+      ];
+    mockedResponseIndex++;
+    return mockedResponseBody;
+  }
   console.log("calling ChatViewers API");
   const url = "https://gql.twitch.tv/gql";
   const requestBody = JSON.stringify([
@@ -507,25 +615,16 @@ const getChatters = async () => {
       },
     },
   ]);
-  const chatViewersResponse = mock
-    ? ""
-    : await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-type": "application/json",
-          "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
-        },
-        body: requestBody,
-      });
-  if (mock || chatViewersResponse.ok) {
-    let chatViewersResponseBody = mock
-      ? mockedResponses[
-          mockedResponseIndex > mockedResponses.length - 1
-            ? mockedResponses.length - 1
-            : mockedResponseIndex
-        ]
-      : await chatViewersResponse.json();
-    mockedResponseIndex++;
+  const chatViewersResponse = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-type": "application/json",
+      "Client-Id": "kimne78kx3ncx6brgo4mv6wki5h1ko",
+    },
+    body: requestBody,
+  });
+  if (chatViewersResponse.ok) {
+    let chatViewersResponseBody = await chatViewersResponse.json();
     return chatViewersResponseBody;
   } else {
     console.error(chatViewersResponse);
@@ -573,15 +672,40 @@ const responseIsValid = (response) => {
   );
 };
 
-const handleChattersAPIResponse = (response) => {
-  if (!responseIsValid(response)) {
-    console.error(response);
-    const errorMessage = "Invalid response body";
-    throw new Error(errorMessage);
-  }
-  const { staff, moderators, vips, viewers } =
-    response[0].data.channel.chatters;
-  const chatters = [...staff, ...moderators, ...vips, ...viewers];
+const handleMonitoredUsersInChannelChanged = (monitoredUsersFound) => {
+  console.log("Monitored users in channel have changed");
+  monitoredUsersInChannel = [...monitoredUsersFound];
+  console.log("Found monitored users in channel");
+  fullViewerAlerterDivNodes = [];
+  Object.keys(channelCategories)
+    .reverse()
+    .forEach((categoryKey) => {
+      const monitoredUsersInChannelForCategory = monitoredUsersInChannel.filter(
+        (monitoredUserInChannel) =>
+          monitoredUserInChannel.userCategory === parseInt(categoryKey)
+      );
+      if (monitoredUsersInChannelForCategory.length > 0) {
+        let usersForCategoryH2String = monitoredUsersInChannelForCategory
+          .map(({ username }) => username)
+          .join(", ");
+        const newViewerAlerterDivNode = createViewerAlerterDivNode(categoryKey);
+        const newViewerAlerterH2Node = createViewerAlerterH2Node(categoryKey);
+        const newViewerAlerterTextNode = document.createTextNode(
+          usersForCategoryH2String
+        );
+        newViewerAlerterH2Node.appendChild(newViewerAlerterTextNode);
+        newViewerAlerterDivNode.appendChild(newViewerAlerterH2Node);
+        fullViewerAlerterDivNodes = [
+          ...fullViewerAlerterDivNodes,
+          newViewerAlerterDivNode,
+        ];
+      }
+    });
+  removeExistingViewerAlerterDivNodes();
+  insertViewerAlerterFullNodes();
+};
+
+const getMonitoredUsersFromChatters = (chatters) => {
   let monitoredUsersFound = [];
   chatters.forEach((chatter) => {
     config.monitoredUsers.forEach((monitoredUser) => {
@@ -594,6 +718,19 @@ const handleChattersAPIResponse = (response) => {
       }
     });
   });
+  return monitoredUsersFound;
+};
+
+const handleChattersAPIResponse = (response) => {
+  if (!responseIsValid(response)) {
+    console.error(response);
+    const errorMessage = "Invalid response body";
+    throw new Error(errorMessage);
+  }
+  const { staff, moderators, vips, viewers } =
+    response[0].data.channel.chatters;
+  const chatters = [...staff, ...moderators, ...vips, ...viewers];
+  let monitoredUsersFound = getMonitoredUsersFromChatters(chatters);
   console.log(
     "🚀 ~ file: twitch-viewer-alerter.user.js ~ line 195 ~ handleChattersAPIResponse ~ chattersFound",
     monitoredUsersFound
@@ -607,73 +744,50 @@ const handleChattersAPIResponse = (response) => {
     monitoredUsersInChannel
   );
   if (monitoredUsersInChannelChanged) {
-    console.log("Monitored users in channel have changed");
-    monitoredUsersInChannel = [...monitoredUsersFound];
-    console.log("Found monitored users in channel");
-    let fullViewerAlerterDivNodes = [];
-    Object.keys(channelCategories)
-      .reverse()
-      .forEach((categoryKey) => {
-        const monitoredUsersInChannelForCategory =
-          monitoredUsersInChannel.filter(
-            (monitoredUserInChannel) =>
-              monitoredUserInChannel.userCategory === parseInt(categoryKey)
-          );
-        if (monitoredUsersInChannelForCategory.length > 0) {
-          let usersForCategoryH2String = monitoredUsersInChannelForCategory
-            .map(({ username }) => username)
-            .join(", ");
-          const newViewerAlerterDivNode =
-            createViewerAlerterDivNode(categoryKey);
-          const newViewerAlerterH2Node = createViewerAlerterH2Node(categoryKey);
-          const newViewerAlerterTextNode = document.createTextNode(
-            usersForCategoryH2String
-          );
-          newViewerAlerterH2Node.appendChild(newViewerAlerterTextNode);
-          newViewerAlerterDivNode.appendChild(newViewerAlerterH2Node);
-          fullViewerAlerterDivNodes = [
-            ...fullViewerAlerterDivNodes,
-            newViewerAlerterDivNode,
-          ];
-        }
-      });
-    const viewerAlerterDivNodes = document.querySelectorAll(
-      `div[id^="${viewerAlerterDivIdPrefix}-"`
-    );
-    viewerAlerterDivNodes.forEach((viewerAlerterDivNode) => {
-      viewerAlerterDivNode.remove();
-    });
-    const divBelowChatInputNode = document.querySelector(
-      selectors.divBelowChatInputNode
-    );
-    if (divBelowChatInputNode) {
-      fullViewerAlerterDivNodes.forEach((fullViewerAlerterDivNode) => {
-        divBelowChatInputNode.parentNode.insertBefore(
-          fullViewerAlerterDivNode,
-          divBelowChatInputNode.nextSibling
-        );
-      });
-      const insertedViewerAlerterDivNodes = document.querySelectorAll(
-        selectors.viewerAlerterDivNodes
-      );
-      insertedViewerAlerterDivNodes.forEach((insertedViewerAlerterDivNode) => {
-        insertedViewerAlerterDivNode.classList.add(
-          `${blinkAnimationClassName}`
-        );
-      });
-      setTimeout(() => {
-        insertedViewerAlerterDivNodes.forEach(
-          (insertedViewerAlerterDivNode) => {
-            insertedViewerAlerterDivNode.classList.remove(
-              `${blinkAnimationClassName}`
-            );
-          }
-        );
-      }, blinkAnimationTimeout);
-    }
+    handleMonitoredUsersInChannelChanged(monitoredUsersFound);
   } else {
     console.log("No new monitored channels found compared to before.");
   }
+};
+
+const removeExistingViewerAlerterDivNodes = () => {
+  const viewerAlerterDivNodes = document.querySelectorAll(
+    `div[id^="${viewerAlerterDivIdPrefix}-"`
+  );
+  viewerAlerterDivNodes.forEach((viewerAlerterDivNode) => {
+    viewerAlerterDivNode.remove();
+  });
+};
+
+const insertViewerAlerterFullNodes = () => {
+  const divBelowChatInputNode = document.querySelector(
+    selectors.divBelowChatInputNode
+  );
+  if (divBelowChatInputNode) {
+    fullViewerAlerterDivNodes.forEach((fullViewerAlerterDivNode) => {
+      divBelowChatInputNode.parentNode.insertBefore(
+        fullViewerAlerterDivNode,
+        divBelowChatInputNode.nextSibling
+      );
+    });
+    const insertedViewerAlerterDivNodes = document.querySelectorAll(
+      selectors.viewerAlerterDivNodes
+    );
+    insertedViewerAlerterDivNodes.forEach((insertedViewerAlerterDivNode) => {
+      insertedViewerAlerterDivNode.classList.add(`${updateAnimationClassName}`);
+    });
+    setUpdateAnimationTimeout(insertedViewerAlerterDivNodes);
+  }
+};
+
+const setUpdateAnimationTimeout = (insertedViewerAlerterDivNodes) => {
+  setTimeout(() => {
+    insertedViewerAlerterDivNodes.forEach((insertedViewerAlerterDivNode) => {
+      insertedViewerAlerterDivNode.classList.remove(
+        `${updateAnimationClassName}`
+      );
+    });
+  }, config.updateAnimationTimeout * 1000);
 };
 
 const arraysEqual = (a1, a2) =>
@@ -689,7 +803,7 @@ const objectsEqual = (o1, o2) =>
   console.log("Twitch Viewer Alerter userscript - START");
   try {
     run();
-    setInterval(() => run(), pollingInterval);
+    setInterval(() => run(), config.pollingInterval * 1000);
   } catch (e) {
     console.log("Twitch Viewer Alerter userscript - STOP (ERROR) \n", e);
   }
