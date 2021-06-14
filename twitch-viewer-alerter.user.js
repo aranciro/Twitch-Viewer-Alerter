@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name            Twitch Viewer Alerter
 // @namespace       https://github.com/aranciro/
-// @version         0.3.0
+// @version         0.4.0
 // @license         GPL-3.0-or-later; https://www.gnu.org/licenses/gpl-3.0.txt
 // @description     Configurable browser userscript that alerts when selected users join the chat.
 // @author          aranciro
@@ -11,6 +11,7 @@
 // @downloadURL     https://raw.githubusercontent.com/aranciro/Twitch-Viewer-Alerter/master/twitch-viewer-alerter.user.js
 // @icon            https://github.com/aranciro/Twitch-Viewer-Alerter/raw/master/res/twitch-viewer-alerter-icon32.png
 // @icon64          https://github.com/aranciro/Twitch-Viewer-Alerter/raw/master/res/twitch-viewer-alerter-icon64.png
+// @require         https://github.com/aranciro/Twitch-Viewer-Alerter/raw/master/lib/joi-browser.min.js
 // @require         https://openuserjs.org/src/libs/sizzle/GM_config.min.js
 // @grant           GM_getValue
 // @grant           GM_setValue
@@ -19,6 +20,8 @@
 // @include         *://*.twitch.tv/*
 // @run-at          document-idle
 // ==/UserScript==
+
+const Joi = joi;
 
 let mock = false;
 let mockRequests = true;
@@ -417,6 +420,8 @@ const mockedMonitoredUsers = [
   },
 ];
 
+// TODO: do not allow adding of users that are already added
+// TODO: split the monitoredUsers field to 3 different fields, 1 per category
 GM_config.init({
   id: "Twitch_Viewer_Alerter_config",
   title: "Twitch Viewer Alerter - Configuration",
@@ -633,43 +638,40 @@ const getChatters = async () => {
   }
 };
 
-// TODO: validate with Joi instead
 const responseIsValid = (response) => {
-  return (
-    Array.isArray(response) &&
-    response.length > 0 &&
-    "data" in response[0] &&
-    "channel" in response[0].data &&
-    "chatters" in response[0].data.channel &&
-    "staff" in response[0].data.channel.chatters &&
-    Array.isArray(response[0].data.channel.chatters.staff) &&
-    (response[0].data.channel.chatters.staff.length == 0 ||
-      ("login" in response[0].data.channel.chatters.staff[0] &&
-        response[0].data.channel.chatters.staff[0].login != null &&
-        response[0].data.channel.chatters.staff[0].login != undefined &&
-        response[0].data.channel.chatters.staff[0].login.length > 0)) &&
-    "moderators" in response[0].data.channel.chatters &&
-    Array.isArray(response[0].data.channel.chatters.moderators) &&
-    (response[0].data.channel.chatters.moderators.length == 0 ||
-      ("login" in response[0].data.channel.chatters.moderators[0] &&
-        response[0].data.channel.chatters.moderators[0].login != null &&
-        response[0].data.channel.chatters.moderators[0].login != undefined &&
-        response[0].data.channel.chatters.moderators[0].login.length > 0)) &&
-    "vips" in response[0].data.channel.chatters &&
-    Array.isArray(response[0].data.channel.chatters.vips) &&
-    (response[0].data.channel.chatters.vips.length == 0 ||
-      ("login" in response[0].data.channel.chatters.vips[0] &&
-        response[0].data.channel.chatters.vips[0].login != null &&
-        response[0].data.channel.chatters.vips[0].login != undefined &&
-        response[0].data.channel.chatters.vips[0].login.length > 0)) &&
-    "viewers" in response[0].data.channel.chatters &&
-    Array.isArray(response[0].data.channel.chatters.viewers) &&
-    (response[0].data.channel.chatters.viewers.length == 0 ||
-      ("login" in response[0].data.channel.chatters.viewers[0] &&
-        response[0].data.channel.chatters.viewers[0].login != null &&
-        response[0].data.channel.chatters.viewers[0].login != undefined &&
-        response[0].data.channel.chatters.viewers[0].login.length > 0))
-  );
+  const chatterGroupSchema = Joi.array()
+    .items(
+      Joi.object({
+        login: Joi.string().trim().min(1).required(),
+      }).unknown(true)
+    )
+    .required();
+  const responseSchema = Joi.array()
+    .min(1)
+    .items(
+      Joi.object({
+        data: Joi.object({
+          channel: Joi.object({
+            chatters: Joi.object({
+              staff: chatterGroupSchema,
+              moderators: chatterGroupSchema,
+              vips: chatterGroupSchema,
+              viewers: chatterGroupSchema,
+              count: Joi.number().min(0).required(),
+            })
+              .unknown(true)
+              .required(),
+          })
+            .unknown(true)
+            .required(),
+        })
+          .unknown(true)
+          .required(),
+      }).unknown(true)
+    )
+    .required();
+  const { error } = responseSchema.validate(response);
+  return !error;
 };
 
 const handleMonitoredUsersInChannelChanged = (monitoredUsersFound) => {
