@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name            Twitch Viewer Alerter
 // @namespace       https://github.com/aranciro/
-// @version         0.4.0
+// @version         0.5.0
 // @license         GPL-3.0-or-later; https://www.gnu.org/licenses/gpl-3.0.txt
 // @description     Configurable browser userscript that alerts when selected users join the chat.
 // @author          aranciro
 // @homepage        https://github.com/aranciro/Twitch-Viewer-Alerter
 // @supportURL      https://github.com/aranciro/Twitch-Viewer-Alerter/issues
-// @updateURL       https://raw.githubusercontent.com/aranciro/Twitch-Viewer-Alerter/master/twitch-viewer-alerter.user.js
-// @downloadURL     https://raw.githubusercontent.com/aranciro/Twitch-Viewer-Alerter/master/twitch-viewer-alerter.user.js
+// @updateURL       https://github.com/aranciro/Twitch-Viewer-Alerter/raw/master/twitch-viewer-alerter.user.js
+// @downloadURL     https://github.com/aranciro/Twitch-Viewer-Alerter/raw/master/twitch-viewer-alerter.user.js
 // @icon            https://github.com/aranciro/Twitch-Viewer-Alerter/raw/master/res/twitch-viewer-alerter-icon32.png
 // @icon64          https://github.com/aranciro/Twitch-Viewer-Alerter/raw/master/res/twitch-viewer-alerter-icon64.png
 // @require         https://github.com/aranciro/Twitch-Viewer-Alerter/raw/master/lib/joi-browser.min.js
@@ -421,7 +421,6 @@ const mockedMonitoredUsers = [
 ];
 
 // TODO: do not allow adding of users that are already added
-// TODO: split the monitoredUsers field to 3 different fields, 1 per category
 GM_config.init({
   id: "Twitch_Viewer_Alerter_config",
   title: "Twitch Viewer Alerter - Configuration",
@@ -442,16 +441,33 @@ GM_config.init({
       min: 0,
       default: 3,
     },
-    monitoredUsers: {
+    monitoredUsersCategory0: {
       label:
-        "<br /><br />Insert the users to be monitored, separated by comma (e.g. user1, user2,...). " +
-        '\n<br />To add category append ":[category index]" (e.g. user1:2, user2:0,...). ' +
-        "\n<br />Available categories: " +
-        "\n<br />0 - Big streamers " +
-        "\n<br />1 - Regular users (default)" +
-        "\n<br />2 - Annoying users",
-      title: "Insert the users to be monitored",
-      type: "text",
+        `<br /><br />${channelCategories[0].name.toUpperCase()}<br />` +
+        `Insert the <i>${channelCategories[0].name.toLowerCase()}</i> to monitor, ` +
+        `separated by comma (e.g. user1, user2,...). `,
+      title: `Insert the ${channelCategories[0].name.toLowerCase()} to monitor`,
+      type: "textarea",
+      size: 30000,
+      default: "",
+    },
+    monitoredUsersCategory1: {
+      label:
+        `<br /><br />${channelCategories[1].name.toUpperCase()}<br />` +
+        `Insert the <i>${channelCategories[1].name.toLowerCase()}</i> to monitor, ` +
+        `separated by comma (e.g. user1, user2,...). `,
+      title: `Insert the ${channelCategories[1].name.toLowerCase()} to monitor`,
+      type: "textarea",
+      size: 30000,
+      default: "",
+    },
+    monitoredUsersCategory2: {
+      label:
+        `<br /><br />${channelCategories[2].name.toUpperCase()}<br />` +
+        `Insert the <i>${channelCategories[2].name.toLowerCase()}</i> to monitor, ` +
+        `separated by comma (e.g. user1, user2,...). `,
+      title: `Insert the ${channelCategories[2].name.toLowerCase()} to monitor`,
+      type: "textarea",
       size: 30000,
       default: "",
     },
@@ -467,31 +483,27 @@ GM_registerMenuCommand("Configure Twitch Viewer Alerter", () => {
   GM_config.open();
 });
 
-const getMonitoredUsersFromConfig = (monitoredUsersRawString) => {
-  const defaultCategory = 1;
+const getMonitoredUsersFromConfig = () => {
   let monitoredUsers = [];
-  try {
-    monitoredUsersRawString.split(",").forEach((monitoredUserInRawString) => {
-      const monitoredUser = monitoredUserInRawString.trim().split(":");
-      const username = monitoredUser[0].trim();
-      const userCategory =
-        monitoredUser.length > 1
-          ? parseInt(monitoredUser[1].trim())
-          : defaultCategory;
-      monitoredUsers = [
-        ...monitoredUsers,
-        {
-          username: username,
-          userCategory: userCategory,
-        },
-      ];
-    });
-  } catch (e) {
-    console.error(
-      "Error while trying to obtain monitored users from config.",
-      e
+  for (let i = 0; i < Object.keys(channelCategories).length; i++) {
+    const categoryMonitoredUsersRawString = GM_config.get(
+      `monitoredUsersCategory${i}`
     );
-    return [];
+    const category = parseInt(Object.keys(channelCategories)[i]);
+    categoryMonitoredUsersRawString
+      .split(",")
+      .forEach((monitoredUserInRawString) => {
+        const username = monitoredUserInRawString.trim();
+        const newMonitoredUser = {
+          username: username,
+          userCategory: category,
+        };
+        console.log(
+          "🚀 ~ file: twitch-viewer-alerter.user.js ~ line 502 ~ .forEach ~ newMonitoredUser",
+          newMonitoredUser
+        );
+        monitoredUsers = [...monitoredUsers, newMonitoredUser];
+      });
   }
   return monitoredUsers;
 };
@@ -505,17 +517,13 @@ const config = mock
   : {
       pollingInterval: GM_config.get("pollingInterval"),
       updateAnimationTimeout: GM_config.get("updateAnimationTimeout"),
-      monitoredUsers: getMonitoredUsersFromConfig(
-        GM_config.get("monitoredUsers")
-      ),
+      monitoredUsers: getMonitoredUsersFromConfig(),
     };
 
 const updateConfig = () => {
   config.pollingInterval = GM_config.get("pollingInterval");
   config.updateAnimationTimeout = GM_config.get("updateAnimationTimeout");
-  config.monitoredUsers = getMonitoredUsersFromConfig(
-    GM_config.get("monitoredUsers")
-  );
+  config.monitoredUsers = getMonitoredUsersFromConfig();
   removeExistingViewerAlerterDivNodes();
   insertViewerAlerterFullNodes();
 };
