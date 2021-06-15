@@ -420,58 +420,48 @@ const mockedMonitoredUsers = [
   },
 ];
 
-// TODO: do not allow adding of users that are already added
+const configFields = {
+  pollingInterval: {
+    label:
+      "<br /><br />Polling interval <br />(do not set too low or Twitch might label requests as spam and block them):<br />",
+    title: "Insert the polling interval in seconds.",
+    type: "int",
+    min: 1,
+    default: mock ? 7 : 30,
+  },
+  updateAnimationTimeout: {
+    label:
+      "<br /><br />Timeout before the blink animation disappears after an update:<br />",
+    title: "Insert the timeout for the update blink animation.",
+    type: "int",
+    min: 0,
+    default: 3,
+  },
+};
+
+Object.keys(channelCategories).forEach((channelCategoryKey) => {
+  configFields[`monitoredUsersCategory${channelCategoryKey}`] = {
+    label:
+      `<br /><br />${channelCategories[
+        channelCategoryKey
+      ].name.toUpperCase()}<br />` +
+      `Insert the <i>${channelCategories[
+        channelCategoryKey
+      ].name.toLowerCase()}</i> to monitor, ` +
+      `separated by comma (e.g. user1, user2,...). `,
+    title: `Insert the ${channelCategories[
+      channelCategoryKey
+    ].name.toLowerCase()} to monitor`,
+    type: "textarea",
+    size: 30000,
+    default: "",
+  };
+});
+
 GM_config.init({
   id: "Twitch_Viewer_Alerter_config",
   title: "Twitch Viewer Alerter - Configuration",
-  fields: {
-    pollingInterval: {
-      label:
-        "<br /><br />Polling interval <br />(do not set too low or Twitch might label requests as spam and block them):<br />",
-      title: "Insert the polling interval in seconds.",
-      type: "int",
-      min: 1,
-      default: mock ? 7 : 30,
-    },
-    updateAnimationTimeout: {
-      label:
-        "<br /><br />Timeout before the blink animation disappears after an update:<br />",
-      title: "Insert the timeout for the update blink animation.",
-      type: "int",
-      min: 0,
-      default: 3,
-    },
-    monitoredUsersCategory0: {
-      label:
-        `<br /><br />${channelCategories[0].name.toUpperCase()}<br />` +
-        `Insert the <i>${channelCategories[0].name.toLowerCase()}</i> to monitor, ` +
-        `separated by comma (e.g. user1, user2,...). `,
-      title: `Insert the ${channelCategories[0].name.toLowerCase()} to monitor`,
-      type: "textarea",
-      size: 30000,
-      default: "",
-    },
-    monitoredUsersCategory1: {
-      label:
-        `<br /><br />${channelCategories[1].name.toUpperCase()}<br />` +
-        `Insert the <i>${channelCategories[1].name.toLowerCase()}</i> to monitor, ` +
-        `separated by comma (e.g. user1, user2,...). `,
-      title: `Insert the ${channelCategories[1].name.toLowerCase()} to monitor`,
-      type: "textarea",
-      size: 30000,
-      default: "",
-    },
-    monitoredUsersCategory2: {
-      label:
-        `<br /><br />${channelCategories[2].name.toUpperCase()}<br />` +
-        `Insert the <i>${channelCategories[2].name.toLowerCase()}</i> to monitor, ` +
-        `separated by comma (e.g. user1, user2,...). `,
-      title: `Insert the ${channelCategories[2].name.toLowerCase()} to monitor`,
-      type: "textarea",
-      size: 30000,
-      default: "",
-    },
-  },
+  fields: configFields,
   events: {
     save: () => {
       updateConfig();
