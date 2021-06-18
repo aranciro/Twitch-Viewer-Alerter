@@ -9,6 +9,7 @@
         "ecmaVersion": 12
     },
     "globals": {
-        "GM_config": "readonly"
+        "GM_config": "readonly",
+        "joi": "readonly"
     }
 }
